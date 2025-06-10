@@ -164,6 +164,9 @@ jobs:
       - uses: actions/download-artifact@v4
         with: { name: frontend-cover,  path: frontend/coverage }
 
+      - name: Debug env
+        run: echo "$SONAR_HOST_URL"
+
       # -------- SCAN --------
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v2
