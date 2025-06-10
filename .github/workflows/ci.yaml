@@ -7,10 +7,6 @@ on:
       - dev
   pull_request:
 
-permissions:
-  contents: read
-  pull-requests: write
-
 jobs:
   # BACKEND JOBS
   backend-lint:
