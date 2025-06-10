@@ -2,142 +2,101 @@ name: CI
 
 on:
   push:
-    branches:
-      - master
-      - dev
-  pull_request:
+    branches: [ master, dev ]
+  pull_request: {}
 
 jobs:
-  # BACKEND JOBS
-  backend-lint:
-    name: Backend Lint (Checkstyle)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up Java
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-
-      - name: Run Checkstyle
-        working-directory: ./backend
-        run: mvn checkstyle:check
-
+  # ------------------------------------------------------------------ BACKEND
   backend-test:
-    name: Backend Test (Maven & Docker)
+    name: Backend Test & Coverage
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Set up Java
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '21'
+      - uses: actions/setup-java@v3
+        with: { distribution: temurin, java-version: '21' }
 
       - name: Install Docker Compose
         run: |
           sudo apt-get update
           sudo apt-get install -y docker-compose
 
-      - name: Start Docker Compose
+      - name: Start Postgres
         run: docker-compose -f backend/docker-compose.yaml up -d
 
-      - name: Wait for Postgres startup
+      - name: Wait DB
         run: sleep 10
 
-      - name: Run Tests with Maven
+      - name: Run tests + JaCoCo
         working-directory: ./backend
         env:
           DATABASE_DRIVER: jdbc:postgresql
-          DATABASE_HOST: localhost
-          DATABASE_PORT: 5432
+          DATABASE_HOST:  localhost
+          DATABASE_PORT:  5432
           DATABASE_LOGIN: postgres
           DATABASE_PASSWORD: postgres
-          DATABASE_NAME: cvetochey
-        run: mvn test
+          DATABASE_NAME:  cvetochey
+        run: mvn -B verify jacoco:report
 
-      - name: Stop Docker Compose
+      # ▸ coverage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backend-cover
+          path: backend/target/jacoco.exec
+
+      # ▸ байт-код (classes)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backend-target
+          path: backend/target/**
+
+      - name: Stop Postgres
         run: docker-compose -f backend/docker-compose.yaml down
 
-  backend-build:
-    name: Backend Build (Maven)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up Java
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-
-      - name: Maven Build
-        working-directory: ./backend
-        run: mvn clean package -DskipTests
-
-  # FRONTEND JOBS
-  frontend-lint:
-    name: Frontend Lint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up Node
-        uses: actions/setup-node@v3
-        with:
-          node-version: '20.11.1'
-
-      - name: Install dependencies
-        working-directory: ./frontend
-        run: yarn install
-
-      - name: Run linters
-        working-directory: ./frontend
-        run: yarn run lint
-
+  # ------------------------------------------------------------------ FRONTEND
   frontend-test:
-    name: Frontend Test
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
+        with: { fetch-depth: 0 }
 
-      - name: Set up Node
-        uses: actions/setup-node@v3
+      - uses: actions/setup-node@v3
+        with: { node-version: '20.11.1' }
+
+      - working-directory: ./frontend
+        run: |
+          yarn install --frozen-lockfile
+          yarn test --coverage --watchAll=false
+
+      - uses: actions/upload-artifact@v4
         with:
-          node-version: '20.11.1'
+          name: frontend-cover
+          path: frontend/coverage/lcov.info
 
-      - name: Install dependencies
-        working-directory: ./frontend
-        run: yarn install
-
-      - name: Run tests
-        working-directory: ./frontend
-        run: yarn run test
-
-  frontend-build:
-    name: Frontend Build (Next.js)
+  # ------------------------------------------------------------------ SONAR
+  sonar:
     runs-on: ubuntu-latest
+    needs: [ backend-test, frontend-test ]
+
+    env:                    # ← секреты видны всем step-ам job’а
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      SONAR_TOKEN:    ${{ secrets.SONAR_TOKEN }}
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
+        with: { fetch-depth: 0 }
 
-      - name: Set up Node
-        uses: actions/setup-node@v3
-        with:
-          node-version: '20.11.1'
+      # ▸ вытягиваем артефакты
+      - uses: actions/download-artifact@v4
+        with: { name: backend-target, path: backend/target }
+      - uses: actions/download-artifact@v4
+        with: { name: backend-cover,  path: backend/target }
+      - uses: actions/download-artifact@v4
+        with: { name: frontend-cover, path: frontend/coverage }
 
-      - name: Install dependencies
-        working-directory: ./frontend
-        run: yarn install
+      # ▸ скан + ожидание Gate
+      - name: Sonar Scan
+        uses: SonarSource/sonarqube-scan-action@v2
 
-      - name: Build NextJS
-        working-directory: ./frontend
-        run: yarn run build
+      - name: Sonar Quality Gate
+        uses: SonarSource/sonarqube-quality-gate-action@v1.1.0
