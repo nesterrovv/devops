@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+      - dev
+  pull_request:
+
+jobs:
+  # BACKEND JOBS
+  backend-lint:
+    name: Backend Lint (Checkstyle)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Run Checkstyle
+        working-directory: ./backend
+        run: mvn checkstyle:check
+
+  backend-test:
+    name: Backend Test (Maven & Docker)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Install Docker Compose
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y docker-compose
+
+      - name: Start Docker Compose
+        run: docker-compose -f backend/docker-compose.yaml up -d
+
+      - name: Wait for Postgres startup
+        run: sleep 10
+
+      - name: Run Tests with Maven
+        working-directory: ./backend
+        env:
+          DATABASE_DRIVER: jdbc:postgresql
+          DATABASE_HOST: localhost
+          DATABASE_PORT: 5432
+          DATABASE_LOGIN: postgres
+          DATABASE_PASSWORD: postgres
+          DATABASE_NAME: cvetochey
+        run: mvn test
+
+      - name: Stop Docker Compose
+        run: docker-compose -f backend/docker-compose.yaml down
+
+  backend-build:
+    name: Backend Build (Maven)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Maven Build
+        working-directory: ./backend
+        run: mvn clean package -DskipTests
+
+  # FRONTEND JOBS
+  frontend-lint:
+    name: Frontend Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20.11.1'
+
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: yarn install
+
+      - name: Run linters
+        working-directory: ./frontend
+        run: yarn run lint
+
+  frontend-test:
+    name: Frontend Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20.11.1'
+
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: yarn install
+
+      - name: Run tests
+        working-directory: ./frontend
+        run: yarn run test
+
+  frontend-build:
+    name: Frontend Build (Next.js)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20.11.1'
+
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: yarn install
+
+      - name: Build NextJS
+        working-directory: ./frontend
+        run: yarn run build

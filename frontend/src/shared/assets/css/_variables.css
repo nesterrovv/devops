@@ -1,0 +1,15 @@
+* {
+    --color-background: #F7F5E7;
+
+    --color-text: #6A5B4E;
+
+    --color-hover: #F3F4F6;
+
+    --color-select: #EAE5DA;
+
+
+    --font-size-s: 12px;
+    --font-size-m: 16px;
+    --font-size-l: 24px;
+    --font-size-xl: 32px;
+}
