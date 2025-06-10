@@ -71,6 +71,12 @@ jobs:
           name: backend-cover
           path: backend/target/jacoco.exec
 
+      - name: Upload backend target
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-target
+          path: backend/target/**
+
       - name: Stop Docker Compose
         run: docker-compose -f backend/docker-compose.yaml down
 
