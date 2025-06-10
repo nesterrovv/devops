@@ -9,7 +9,7 @@ services:
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=cvetochey
     ports:
-      - "5435:5432"
+      - "5432:5432"
 
   backend:
     image: nesterrovv/cvet-ochey:1.0
